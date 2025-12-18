@@ -4,6 +4,8 @@ export enum Language {
   JAPANESE = 'ja-JP'
 }
 
+export type InteractionState = 'idle' | 'listening' | 'thinking' | 'speaking' | 'error';
+
 export interface LogEntry {
   id: string;
   timestamp: number;
