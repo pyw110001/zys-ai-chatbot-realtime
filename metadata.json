@@ -1,0 +1,7 @@
+{
+  "name": "Gemini Voice Flow",
+  "description": "A real-time low-latency AI voice chat application supporting Chinese and Japanese, featuring full debugging logs and high-fidelity audio interaction.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
