@@ -8,6 +8,19 @@ import ChatBubble from './components/ChatBubble';
 import Toast from './components/Toast';
 import { logger } from './services/debugLogger';
 
+// SVG Logo component recreated from user image
+const ZysLogo: React.FC<{ className?: string }> = ({ className }) => (
+  <svg 
+    viewBox="0 0 100 100" 
+    className={className}
+    fill="currentColor"
+  >
+    <path d="M26.8 27.8H59.4L37.1 50.1H26.8V27.8Z" />
+    <path d="M73.2 27.8L51.9 49.1L26.8 74.2H59.4L73.2 60.4V27.8Z" />
+    <path d="M40.6 74.2H73.2V51.9H62.9L40.6 74.2Z" />
+  </svg>
+);
+
 const App: React.FC = () => {
   const [isConnecting, setIsConnecting] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
@@ -86,10 +99,17 @@ const App: React.FC = () => {
       
       {/* Header */}
       <header className="h-16 px-6 flex items-center justify-between border-b border-gray-200 dark:border-gray-800 ios-glass z-20">
-        <div className="flex flex-col">
-          <h1 className="text-lg font-bold tracking-tight uppercase">ZYS AI ASSISTANT</h1>
-          <span className="text-[10px] uppercase tracking-widest text-gray-500 font-bold">realtime</span>
+        {/* LOGO + Text Layout */}
+        <div className="flex items-center">
+          <div className="h-9 w-9 flex items-center justify-center mr-0.5">
+            <ZysLogo className="h-full w-full text-ios-light-text dark:text-ios-dark-text" />
+          </div>
+          <div className="flex flex-col justify-between py-0.5 h-9">
+            <h1 className="text-lg font-bold tracking-tight uppercase leading-none">ZYS AI ASSISTANT</h1>
+            <span className="text-[10px] uppercase tracking-[0.15em] text-gray-500 font-bold leading-none">realtime</span>
+          </div>
         </div>
+
         <div className="flex items-center gap-2">
           <button 
             onClick={toggleDebug}
