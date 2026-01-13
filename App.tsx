@@ -6,6 +6,7 @@ import DebugConsole from './components/DebugConsole';
 import DynamicOrb from './components/DynamicOrb';
 import ChatBubble from './components/ChatBubble';
 import Toast from './components/Toast';
+import KnowledgeBaseModal from './components/KnowledgeBaseModal';
 import { logger } from './services/debugLogger';
 
 // SVG Logo component recreated from user image
@@ -29,7 +30,8 @@ const App: React.FC = () => {
   const [currentOutput, setCurrentOutput] = useState('');
   const [interactionState, setInteractionState] = useState<InteractionState>('idle');
   const [showDebug, setShowDebug] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
+  const [kbOpen, setKbOpen] = useState(false);
+  const [kbContent, setKbContent] = useState('');
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     if (typeof window !== 'undefined') {
       return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
@@ -37,17 +39,9 @@ const App: React.FC = () => {
     return 'light';
   });
   const [toast, setToast] = useState<{ message: string; type: 'info' | 'error' } | null>(null);
-  const [hotkey, setHotkey] = useState<string>(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('voiceHotkey') || 'Space';
-    }
-    return 'Space';
-  });
-  const [isRecordingHotkey, setIsRecordingHotkey] = useState(false);
   
   const geminiServiceRef = useRef<GeminiLiveService | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
-  const hotkeyInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     document.documentElement.className = theme;
@@ -77,7 +71,7 @@ const App: React.FC = () => {
     }
   }, [currentOutput]);
 
-  const toggleConnection = useCallback(async () => {
+  const toggleConnection = async () => {
     if (isConnected) {
       geminiServiceRef.current?.disconnect();
       setIsConnected(false);
@@ -86,7 +80,7 @@ const App: React.FC = () => {
     } else {
       setIsConnecting(true);
       try {
-        await geminiServiceRef.current?.connect(handleMessage);
+        await geminiServiceRef.current?.connect(handleMessage, kbContent);
         setIsConnected(true);
         setInteractionState('listening');
         setToast({ message: 'Connected to Gemini', type: 'info' });
@@ -97,101 +91,32 @@ const App: React.FC = () => {
         setIsConnecting(false);
       }
     }
-  }, [isConnected, handleMessage]);
-
-  // 键盘快捷键监听
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // 如果正在输入设置，忽略快捷键
-      if (isRecordingHotkey || showSettings || (e.target as HTMLElement).tagName === 'INPUT' || (e.target as HTMLElement).tagName === 'TEXTAREA') {
-        return;
-      }
-
-      const key = e.code === 'Space' ? 'Space' : e.key;
-      if (key === hotkey || (hotkey === 'Space' && e.code === 'Space')) {
-        e.preventDefault();
-        if (!isConnected && !isConnecting) {
-          toggleConnection();
-        }
-      }
-    };
-
-    const handleKeyUp = (e: KeyboardEvent) => {
-      if (isRecordingHotkey || showSettings || (e.target as HTMLElement).tagName === 'INPUT' || (e.target as HTMLElement).tagName === 'TEXTAREA') {
-        return;
-      }
-
-      const key = e.code === 'Space' ? 'Space' : e.key;
-      if (key === hotkey || (hotkey === 'Space' && e.code === 'Space')) {
-        e.preventDefault();
-        if (isConnected) {
-          toggleConnection();
-        }
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
-
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('keyup', handleKeyUp);
-    };
-  }, [hotkey, isConnected, isConnecting, isRecordingHotkey, showSettings, toggleConnection]);
+  };
 
   const toggleTheme = () => setTheme(t => t === 'light' ? 'dark' : 'light');
-  const toggleDebug = () => {
-    setShowDebug(s => !s);
-    if (showSettings) setShowSettings(false);
-  };
-  const toggleSettings = () => {
-    setShowSettings(s => !s);
-    if (showDebug) setShowDebug(false);
-  };
-
-  const handleHotkeyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setHotkey(value);
-  };
-
-  const handleHotkeyKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    e.preventDefault();
-    // 忽略 Escape 键，用于取消
-    if (e.key === 'Escape') {
-      setIsRecordingHotkey(false);
-      if (hotkeyInputRef.current) {
-        hotkeyInputRef.current.blur();
-      }
-      return;
-    }
-    const key = e.code === 'Space' ? 'Space' : e.key;
-    setHotkey(key);
-    setIsRecordingHotkey(false);
-    if (hotkeyInputRef.current) {
-      hotkeyInputRef.current.blur();
-    }
-  };
-
-  const startRecordingHotkey = () => {
-    setIsRecordingHotkey(true);
-    // 使用 setTimeout 确保 DOM 更新后再聚焦
-    setTimeout(() => {
-      if (hotkeyInputRef.current) {
-        hotkeyInputRef.current.focus();
-      }
-    }, 0);
-  };
-
-  const saveHotkey = () => {
-    localStorage.setItem('voiceHotkey', hotkey);
-    setShowSettings(false);
-    setToast({ message: `快捷键已设置为: ${hotkey === 'Space' ? '空格键' : hotkey}`, type: 'info' });
-  };
+  const toggleDebug = () => setShowDebug(s => !s);
 
   return (
     <div className={`flex flex-col h-screen bg-ios-light-bg dark:bg-ios-dark-bg text-ios-light-text dark:text-ios-dark-text transition-colors duration-300`}>
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       
+      <KnowledgeBaseModal 
+        isOpen={kbOpen} 
+        onClose={() => setKbOpen(false)}
+        initialContent={kbContent}
+        onSave={(content) => {
+          setKbContent(content);
+          if (content.length > 0) {
+             setToast({ message: 'Knowledge base updated', type: 'info' });
+             if (isConnected) {
+                // Optional: Inform user they might need to reconnect if we were implementing hot-reload, 
+                // but since we pass it on connect, a simple toast is fine.
+                setToast({ message: 'Reconnect to apply KB changes', type: 'info' });
+             }
+          }
+        }}
+      />
+
       {/* Header */}
       <header className="h-16 px-6 flex items-center justify-between border-b border-gray-200 dark:border-gray-800 ios-glass z-20">
         {/* LOGO + Text Layout */}
@@ -206,16 +131,17 @@ const App: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2">
-          <button 
-            onClick={toggleSettings}
-            className={`p-2 rounded-full transition-colors active:scale-95 ${showSettings ? 'bg-blue-500/10 text-blue-500' : 'hover:bg-gray-200 dark:hover:bg-gray-800'}`}
-            title="设置"
+           <button 
+            onClick={() => setKbOpen(true)}
+            className={`p-2 rounded-full transition-colors active:scale-95 ${kbContent.length > 0 ? 'bg-blue-500/10 text-blue-500' : 'hover:bg-gray-200 dark:hover:bg-gray-800'}`}
+            title="Knowledge Base"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
             </svg>
+            {kbContent.length > 0 && <span className="absolute top-3 right-2 w-2 h-2 bg-blue-500 rounded-full border border-white dark:border-gray-900"></span>}
           </button>
+
           <button 
             onClick={toggleDebug}
             className={`p-2 rounded-full transition-colors active:scale-95 ${showDebug ? 'bg-blue-500/10 text-blue-500' : 'hover:bg-gray-200 dark:hover:bg-gray-800'}`}
@@ -249,6 +175,11 @@ const App: React.FC = () => {
               <div className="h-full flex flex-col items-center justify-center opacity-40 px-8 text-center">
                 <p className="text-xl font-medium mb-2">Ready for interaction</p>
                 <p className="text-sm">Tap the microphone to start a seamless voice session in Chinese or Japanese.</p>
+                {kbContent && (
+                  <div className="mt-4 px-3 py-1 bg-blue-500/10 text-blue-500 rounded-full text-xs font-medium border border-blue-500/20">
+                    Knowledge Base Active
+                  </div>
+                )}
               </div>
             )}
             {messages.map((msg) => (
@@ -261,94 +192,31 @@ const App: React.FC = () => {
           <div className="absolute bottom-0 left-0 right-0 p-8 pb-12 ios-glass border-t border-gray-200 dark:border-gray-800 flex flex-col items-center gap-6 z-10">
             <DynamicOrb state={interactionState} />
             
-            <div className="flex flex-col items-center gap-3">
-              <button
-                onClick={toggleConnection}
-                disabled={isConnecting}
-                className={`group relative flex items-center justify-center w-16 h-16 rounded-full transition-all duration-300 active:scale-90 ${
-                  isConnected 
-                    ? 'bg-red-500 shadow-[0_0_20px_rgba(239,68,68,0.4)]' 
-                    : 'bg-[#007AFF] shadow-[0_0_20px_rgba(0,122,255,0.4)] hover:shadow-[0_0_30px_rgba(0,122,255,0.6)]'
-                }`}
-              >
-                {isConnecting ? (
-                  <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                ) : isConnected ? (
-                  <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                ) : (
-                  <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>
-                )}
-              </button>
-              <p className="text-xs text-gray-500 dark:text-gray-400 text-center">
-                点击或按 <kbd className="px-2 py-1 bg-gray-200 dark:bg-gray-700 rounded text-xs font-mono">{hotkey === 'Space' ? '空格键' : hotkey}</kbd> {isConnected ? '断开' : '连接'}
-              </p>
-            </div>
+            <button
+              onClick={toggleConnection}
+              disabled={isConnecting}
+              className={`group relative flex items-center justify-center w-16 h-16 rounded-full transition-all duration-300 active:scale-90 ${
+                isConnected 
+                  ? 'bg-red-500 shadow-[0_0_20px_rgba(239,68,68,0.4)]' 
+                  : 'bg-[#007AFF] shadow-[0_0_20px_rgba(0,122,255,0.4)] hover:shadow-[0_0_30px_rgba(0,122,255,0.6)]'
+              }`}
+            >
+              {isConnecting ? (
+                <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+              ) : isConnected ? (
+                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              ) : (
+                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>
+              )}
+            </button>
           </div>
         </main>
-
-        {/* Settings Sidebar */}
-        <aside 
-          className={`absolute top-0 right-0 bottom-0 z-30 w-full md:w-96 border-l border-gray-200 dark:border-gray-800 bg-ios-light-bg dark:bg-ios-dark-bg overflow-hidden transition-transform duration-300 ease-in-out ${showSettings ? 'translate-x-0' : 'translate-x-full md:translate-x-full'}`}
-          style={{ 
-            boxShadow: showSettings ? '-10px 0 30px rgba(0,0,0,0.1)' : 'none' 
-          }}
-        >
-          <div className="h-full flex flex-col">
-            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-800">
-              <h2 className="text-lg font-semibold">设置</h2>
-              <button onClick={toggleSettings} className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto p-6 space-y-6">
-              <div>
-                <label className="block text-sm font-medium mb-2">语音输入快捷键</label>
-                <div className="space-y-3">
-                  <div className="flex items-center gap-3">
-                    <input
-                      ref={hotkeyInputRef}
-                      type="text"
-                      value={hotkey === 'Space' ? '空格键' : hotkey}
-                      onChange={handleHotkeyChange}
-                      onKeyDown={handleHotkeyKeyDown}
-                      readOnly={!isRecordingHotkey}
-                      placeholder={isRecordingHotkey ? "按下要设置的按键" : "点击设置按钮来配置快捷键"}
-                      className="flex-1 px-4 py-2 bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                    <button
-                      onClick={startRecordingHotkey}
-                      disabled={isRecordingHotkey}
-                      className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {isRecordingHotkey ? '按下按键...' : '设置'}
-                    </button>
-                  </div>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    当前快捷键: <kbd className="px-2 py-1 bg-gray-200 dark:bg-gray-700 rounded text-xs font-mono">{hotkey === 'Space' ? '空格键' : hotkey}</kbd>
-                  </p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    提示: 按下快捷键可切换语音连接状态
-                  </p>
-                </div>
-              </div>
-            </div>
-            <div className="p-4 border-t border-gray-200 dark:border-gray-800">
-              <button
-                onClick={saveHotkey}
-                className="w-full px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-              >
-                保存设置
-              </button>
-            </div>
-          </div>
-        </aside>
 
         {/* Debug Sidebar with Transition */}
         <aside 
           className={`absolute top-0 right-0 bottom-0 z-30 w-full md:w-96 border-l border-gray-200 dark:border-gray-800 bg-ios-light-bg dark:bg-ios-dark-bg overflow-hidden transition-transform duration-300 ease-in-out ${showDebug ? 'translate-x-0' : 'translate-x-full md:translate-x-full'}`}
           style={{ 
-            boxShadow: showDebug ? '-10px 0 30px rgba(0,0,0,0.1)' : 'none',
-            transform: showSettings ? 'translateX(100%)' : (showDebug ? 'translateX(0)' : 'translateX(100%)')
+            boxShadow: showDebug ? '-10px 0 30px rgba(0,0,0,0.1)' : 'none' 
           }}
         >
           <div className="flex justify-end p-4 lg:hidden">
