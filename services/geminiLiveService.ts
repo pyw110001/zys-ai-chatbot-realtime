@@ -29,13 +29,24 @@ export class GeminiLiveService {
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
       // Construct System Instruction with Knowledge Base
-      let systemInstructionText = `You are ZYS AI ASSISTANT, a helpful, low-latency voice assistant. 
+      let systemInstructionText = `You are ZYS AI ASSISTANT, a professional and helpful voice assistant. 
           Respond fluently in Chinese (zh-CN) or Japanese (ja-JP) based on user input. 
           Keep responses concise (under 100 words) for natural flow.`;
 
       if (knowledgeBase && knowledgeBase.trim().length > 0) {
-        systemInstructionText += `\n\n[CRITICAL KNOWLEDGE BASE]\nUse the following information to answer the user's questions. If the answer is in this text, prioritize it:\n\n${knowledgeBase}`;
-        logger.log({ stage: 'SYSTEM', status: 'INFO', message: 'Knowledge base injected into system instructions.' });
+        systemInstructionText += `\n\n### CRITICAL KNOWLEDGE BASE (STRICT ADHERENCE) ###
+        
+        The following text contains the OFFICIAL facts about partners, products, or services. 
+        When user asks about topics covered here, you MUST:
+        1. Prioritize this information over your general training.
+        2. Speak as an official representative of these entities.
+        3. Do not invent details (hallucinate) if they are not present below.
+        
+        --- START OF KNOWLEDGE BASE ---
+        ${knowledgeBase}
+        --- END OF KNOWLEDGE BASE ---`;
+        
+        logger.log({ stage: 'SYSTEM', status: 'INFO', message: 'Knowledge base injected with strict adherence protocols.' });
       }
 
       const sessionPromise = ai.live.connect({

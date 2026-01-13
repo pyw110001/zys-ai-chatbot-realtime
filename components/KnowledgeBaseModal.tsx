@@ -8,6 +8,21 @@ interface KnowledgeBaseModalProps {
   onSave: (content: string) => void;
 }
 
+const PARTNER_TEMPLATE = `# 核心合作方名录 (Partner Directory)
+
+当用户询问关于合作伙伴的信息时，请严格基于以下内容回答：
+
+## 1. 公司名称: [示例科技 Example Tech]
+- **简介**: 专注于人工智能底层算力的高科技企业。
+- **合作领域**: 芯片供应, 算力支持。
+- **联系人**: 张三 (CTO)
+
+## 2. 公司名称: [示例物流 Example Logistics]
+- **简介**: 全球前三的供应链解决方案提供商。
+- **合作领域**: 全球物流配送。
+- **备注**: 优先合作伙伴。
+`;
+
 const KnowledgeBaseModal: React.FC<KnowledgeBaseModalProps> = ({ isOpen, onClose, initialContent, onSave }) => {
   const [content, setContent] = useState(initialContent);
   const [isClosing, setIsClosing] = useState(false);
@@ -27,6 +42,13 @@ const KnowledgeBaseModal: React.FC<KnowledgeBaseModalProps> = ({ isOpen, onClose
   const handleSave = () => {
     onSave(content);
     handleClose();
+  };
+
+  const handleInsertTemplate = () => {
+    if (content.trim().length > 0) {
+      if (!confirm('This will replace your current content. Continue?')) return;
+    }
+    setContent(PARTNER_TEMPLATE);
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -78,18 +100,31 @@ const KnowledgeBaseModal: React.FC<KnowledgeBaseModalProps> = ({ isOpen, onClose
             <textarea 
               value={content}
               onChange={(e) => setContent(e.target.value)}
-              placeholder="Paste text here or upload a file..."
+              placeholder="Paste text here or use the template..."
               className="w-full h-64 p-4 rounded-xl bg-white dark:bg-[#1C1C1E] border border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-blue-500 focus:outline-none resize-none font-mono text-sm leading-relaxed"
             />
             
-            <div className="mt-4 flex items-center justify-between">
-              <label className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 cursor-pointer transition-colors text-sm font-medium">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                </svg>
-                Import File (.txt/.md)
-                <input type="file" accept=".txt,.md,.json" onChange={handleFileUpload} className="hidden" />
-              </label>
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <label className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 cursor-pointer transition-colors text-sm font-medium">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                  </svg>
+                  Import File
+                  <input type="file" accept=".txt,.md,.json" onChange={handleFileUpload} className="hidden" />
+                </label>
+                
+                <button 
+                  onClick={handleInsertTemplate}
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 border border-blue-500/20 transition-colors text-sm font-medium"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  Insert Template
+                </button>
+              </div>
+
               <span className="text-xs text-gray-400">
                 {content.length} characters
               </span>
