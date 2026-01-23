@@ -25,32 +25,36 @@ export class GeminiLiveService {
       this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
       this.inputAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
       
-      // Initialize GoogleGenAI right before connecting to ensure latest API key as per guidelines
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-      // Construct System Instruction with Knowledge Base
-      let systemInstructionText = `You are ZYS AI ASSISTANT, a professional and helpful voice assistant. 
-          Respond fluently in Chinese (zh-CN) or Japanese (ja-JP) based on user input. 
-          Keep responses concise (under 100 words) for natural flow.`;
+      // Corporate description provided by the user
+      const corporateBio = `Found in Shanghai by Qibing Jiang, HITOSHI Ltd. is a multi-disciplinary architectural design studio expanding their design work from reality to meta universe. In 2023, HITOSHI established a new brand of tech. and art consulting service, HITOSHI in Tokyo. With Qibing’s experience of being director of leading international architectural firm and resonance of vernacular culture, Hitoshi DRL provides a overall solution crossing architecture, interior and tech. & art consulting responding to a highly mixed social environment of globalization and localization for a new paradigm in architecture and interior space. Our designs aim to break down professional categorization, integrate various disciplines, span real and virtual spaces, and ultimately create impressive and pleasant spaces.`;
+
+      // Construct System Instruction with HITOSHI context
+      let systemInstructionText = `You are the AI ASSISTANT for HITOSHI Ltd. (斉設計研究所株式会社). You are a professional, helpful, and sophisticated voice assistant for this multi-disciplinary architectural design studio.
+
+[STUDIO BACKGROUND]
+${corporateBio}
+
+[CORE VALUES]
+- Break down professional categorization.
+- Integrate various disciplines.
+- Span real and virtual spaces.
+- Create impressive and pleasant spaces.
+
+[INTERACTION STYLE]
+- Respond fluently in Chinese (zh-CN) or Japanese (ja-JP) based on user input.
+- Keep responses concise (under 100 words) for natural voice flow.
+- Tone: Professional, architectural, creative, and forward-thinking.`;
 
       if (knowledgeBase && knowledgeBase.trim().length > 0) {
-        systemInstructionText += `\n\n### CRITICAL KNOWLEDGE BASE (STRICT ADHERENCE) ###
-        
-        The following text contains the OFFICIAL facts about partners, products, or services. 
-        When user asks about topics covered here, you MUST:
-        1. Prioritize this information over your general training.
-        2. Speak as an official representative of these entities.
-        3. Do not invent details (hallucinate) if they are not present below.
-        
-        --- START OF KNOWLEDGE BASE ---
-        ${knowledgeBase}
-        --- END OF KNOWLEDGE BASE ---`;
-        
-        logger.log({ stage: 'SYSTEM', status: 'INFO', message: 'Knowledge base injected with strict adherence protocols.' });
+        systemInstructionText += `\n\n### ADDITIONAL KNOWLEDGE BASE ###
+        Use this specific information as priority for factual queries:
+        ${knowledgeBase}`;
       }
 
       const sessionPromise = ai.live.connect({
-        model: 'gemini-2.5-flash-native-audio-preview-09-2025',
+        model: 'gemini-2.5-flash-native-audio-preview-12-2025',
         config: {
           responseModalities: [Modality.AUDIO],
           systemInstruction: systemInstructionText,
@@ -67,9 +71,6 @@ export class GeminiLiveService {
             this.startMic(sessionPromise);
           },
           onmessage: async (message: LiveServerMessage) => {
-            const startTime = Date.now();
-            
-            // Handle Audio Output
             const base64Audio = message.serverContent?.modelTurn?.parts[0]?.inlineData?.data;
             if (base64Audio && this.audioContext) {
               this.nextStartTime = Math.max(this.nextStartTime, this.audioContext.currentTime);
@@ -81,29 +82,17 @@ export class GeminiLiveService {
               this.nextStartTime += audioBuffer.duration;
               this.sources.add(source);
               source.onended = () => this.sources.delete(source);
-              
-              logger.log({ 
-                stage: 'TTS', 
-                status: 'SUCCESS', 
-                message: 'Audio chunk received', 
-                duration: Date.now() - startTime 
-              });
             }
 
-            // Handle Transcriptions
             if (message.serverContent?.inputTranscription) {
               onMessage(message.serverContent.inputTranscription.text, 'user', !!message.serverContent.turnComplete);
-              logger.log({ stage: 'ASR', status: 'INFO', message: 'Transcription received', data: message.serverContent.inputTranscription.text });
             }
             if (message.serverContent?.outputTranscription) {
               onMessage(message.serverContent.outputTranscription.text, 'model', !!message.serverContent.turnComplete);
-              logger.log({ stage: 'LLM', status: 'INFO', message: 'Model response chunk received', data: message.serverContent.outputTranscription.text });
             }
 
             if (message.serverContent?.interrupted) {
               this.stopAudio();
-              // Fix: Changed 'WARN' to 'INFO' to match LogEntry status type
-              logger.log({ stage: 'SYSTEM', status: 'INFO', message: 'Audio interrupted by user' });
             }
           },
           onerror: (e) => {
@@ -118,12 +107,7 @@ export class GeminiLiveService {
 
       this.session = await sessionPromise;
     } catch (err) {
-      logger.log({ 
-        stage: 'SYSTEM', 
-        status: 'ERROR', 
-        message: 'Failed to connect', 
-        data: err 
-      });
+      logger.log({ stage: 'SYSTEM', status: 'ERROR', message: 'Connection failed', data: err });
       throw err;
     }
   }
@@ -138,7 +122,6 @@ export class GeminiLiveService {
         if (!this.isConnected) return;
         const inputData = e.inputBuffer.getChannelData(0);
         const pcmData = floatTo16BitPCM(inputData);
-        // Use sessionPromise.then to avoid stale closures as per guidelines
         sessionPromise.then(session => {
           session.sendRealtimeInput({
             media: {
@@ -151,9 +134,8 @@ export class GeminiLiveService {
 
       source.connect(this.scriptProcessor);
       this.scriptProcessor.connect(this.inputAudioContext!.destination);
-      logger.log({ stage: 'ASR', status: 'SUCCESS', message: 'Microphone stream started' });
     } catch (err) {
-      logger.log({ stage: 'ASR', status: 'ERROR', message: 'Microphone access denied', data: err });
+      logger.log({ stage: 'ASR', status: 'ERROR', message: 'Mic access failed', data: err });
     }
   }
 
@@ -170,14 +152,9 @@ export class GeminiLiveService {
       this.session.close();
       this.session = null;
     }
-    if (this.scriptProcessor) {
-      this.scriptProcessor.disconnect();
-    }
-    if (this.microphoneStream) {
-      this.microphoneStream.getTracks().forEach(t => t.stop());
-    }
+    if (this.scriptProcessor) this.scriptProcessor.disconnect();
+    if (this.microphoneStream) this.microphoneStream.getTracks().forEach(t => t.stop());
     if (this.audioContext) this.audioContext.close();
     if (this.inputAudioContext) this.inputAudioContext.close();
-    logger.log({ stage: 'SYSTEM', status: 'INFO', message: 'All services stopped' });
   }
 }

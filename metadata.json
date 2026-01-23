@@ -1,5 +1,5 @@
 {
-  "name": "ZYS AI ASSISTANT-REALTIME",
+  "name": "HITOSHI AI ASSISTANT-REALTIME",
   "description": "A real-time low-latency AI voice chat application supporting Chinese and Japanese, featuring full debugging logs and high-fidelity audio interaction.",
   "requestFramePermissions": [
     "microphone"
